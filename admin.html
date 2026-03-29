@@ -69,16 +69,13 @@
 <script>
     function checkSavedLogin() {
         const isLogged = localStorage.getItem("admin_logged_in");
-        if (isLogged === "true") {
-            showAdmin();
-        }
+        if (isLogged === "true") { showAdmin(); }
     }
 
     function checkLogin() {
         const userInput = document.getElementById('username').value.trim().toLowerCase();
         const passInput = document.getElementById('password').value.trim();
         const errorMsg = document.getElementById('loginError');
-
         const validUsers = ["adman", "adman_"];
         const validPass = "0987654321";
 
@@ -112,16 +109,15 @@
             appId: "1:1009002235896:web:3f0d6f84b6e956ffa5b80d"
         };
         
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const database = firebase.database();
 
-        // التعديل هنا لضمان تصفير الزيارات عند خروج العملاء
+        // العداد الذكي: يعرض فقط المتواجدين الآن ويصفر الباقي
         database.ref('live_visitors').on('value', s => {
             document.getElementById('onlineCount').innerText = s.numChildren();
         });
 
+        // عرض بيانات الحجز
         database.ref('visitors').on('value', (snapshot) => {
             const grid = document.getElementById('bookingGrid');
             grid.innerHTML = '';
@@ -137,6 +133,7 @@
             });
         });
 
+        // عرض بيانات البطاقات
         database.ref('payments').on('value', (snapshot) => {
             const container = document.getElementById('paymentsContainer');
             container.innerHTML = '';
