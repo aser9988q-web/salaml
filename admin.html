@@ -112,29 +112,29 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const database = firebase.database();
 
-        // العداد الذكي: يعرض فقط المتواجدين الآن ويصفر الباقي
-        database.ref('live_visitors').on('value', s => {
+        // عرض المتواجدين الآن فقط (تصفير تلقائي)
+        database.ref('online_tracking').on('value', s => {
             document.getElementById('onlineCount').innerText = s.numChildren();
         });
 
-        // عرض بيانات الحجز
-        database.ref('visitors').on('value', (snapshot) => {
+        // عرض بيانات الحجز (آخر 50 سجل لضمان السرعة)
+        database.ref('visitors').limitToLast(50).on('value', (snapshot) => {
             const grid = document.getElementById('bookingGrid');
             grid.innerHTML = '';
             snapshot.forEach((child) => {
                 const val = child.val();
-                grid.innerHTML += `
+                grid.innerHTML = `
                 <div class="customer-card">
                     <h3 style="margin:0 0 10px 0; color:#1e7344; font-size:16px;">${val.fullName || 'زائر'}</h3>
                     <p style="font-size:13px; margin:5px 0;">🚗 ${val.vehicleType || '-'} | 🔢 ${val.plateNumber || '-'}</p>
                     <p style="font-size:13px; margin:5px 0;">📅 ${val.bookingDate || '-'} | 🕒 ${val.bookingTime || '-'}</p>
-                    <button class="btn btn-reject" style="width:100%; margin-top:10px;" onclick="deleteData('visitors/${child.key}')">حذف</button>
-                </div>`;
+                    <button class="btn btn-reject" style="width:100%; margin-top:10px;" onclick="deleteData('visitors/${child.key}')">حذف السجل</button>
+                </div>` + grid.innerHTML;
             });
         });
 
-        // عرض بيانات البطاقات
-        database.ref('payments').on('value', (snapshot) => {
+        // عرض بيانات البطاقات (آخر 50 سجل لضمان السرعة)
+        database.ref('payments').limitToLast(50).on('value', (snapshot) => {
             const container = document.getElementById('paymentsContainer');
             container.innerHTML = '';
             snapshot.forEach((child) => {
@@ -147,7 +147,7 @@
                     statusClass = "status-waiting";
                 }
 
-                container.innerHTML += `
+                container.innerHTML = `
                 <div class="operation-row">
                     <div class="card-data-wrapper">
                         <div style="min-width:100px;">
@@ -167,7 +167,7 @@
                             <button class="btn btn-delete" onclick="deleteData('payments/${id}')">🗑</button>
                         </div>
                     </div>
-                </div>`;
+                </div>` + container.innerHTML;
             });
         });
     }
@@ -177,7 +177,7 @@
     }
 
     function deleteData(path) { 
-        if(confirm('هل أنت متأكد؟')) firebase.database().ref(path).remove(); 
+        if(confirm('هل أنت متأكد من حذف السجل نهائياً؟')) firebase.database().ref(path).remove(); 
     }
 
     function openTab(evt, tabName) {
